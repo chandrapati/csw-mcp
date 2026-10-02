@@ -142,6 +142,21 @@ See **[docs/USAGE.md](docs/USAGE.md)** for example prompts and when to use each 
 
 ---
 
+## Ready to show
+
+Live-tested on a Secure Workload SaaS tenant on **2 Oct 2026**. These features returned data and are ready to demo. The running list is **[docs/TESTED.md](docs/TESTED.md)**.
+
+| Ask this | Feature |
+|---|---|
+| "Show me the scope tree." | `list_scopes` |
+| "How many agents are reporting, and what are their names?" | `list_sensors` |
+| "What workspaces are defined?" | `list_workspaces` |
+| "Look up this IP in inventory." | `search_inventory`, `get_workload` |
+| "Which forensic profiles are configured?" | `list_forensic_profiles` |
+| "How many agents and scopes are on this cluster?" | `summarize_cluster_posture` (fleet size and scope count) |
+
+---
+
 ## Examples
 
 Five fully-synthetic walkthroughs live in **[`examples/`](examples/)**, each with
