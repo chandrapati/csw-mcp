@@ -20,10 +20,8 @@
 
 `csw-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server
 that lets MCP clients (Cursor, Claude Desktop, …) query a **Cisco Secure Workload
-(CSW / Tetration)** cluster in plain English. It is for the people who run
-that cluster: **customers** operating their own tenant, and the Cisco or
-partner engineers who support them. You get posture answers without writing
-HMAC-signed API calls yourself.
+(CSW / Tetration)** cluster in plain English. It is for anyone who wants to
+use CSW and get posture answers without writing HMAC-signed API calls.
 
 ```mermaid
 flowchart LR
