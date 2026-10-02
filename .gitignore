@@ -1,0 +1,34 @@
+# Credentials — NEVER commit
+.env
+*.env
+!.env.example
+api_credentials*.json
+credentials.json
+*.json.bak
+*.pem
+*.key
+
+# Python cache / virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# uv
+.uv/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Local test / scratch output (never commit live cluster data)
+scratch/
+*.local.*

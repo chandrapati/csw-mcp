@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Executive Security Posture Summary — demo-cluster.tetrationcloud.com</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F8FAFC; --card:#fff; --border:#E2E8F0;
+  --cisco:#00bceb; --cisco-dark:#005073;
+  --green:#059669; --red:#dc2626; --amber:#d97706; --blue:#0369A1;
+  --text:#020617; --text2:#475569; --text3:#94A3B8;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06); --shadow-md:0 4px 6px rgba(0,0,0,.06);
+  --radius:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);
+     color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+.header{background:linear-gradient(135deg,#00bceb 0%,#005073 100%);
+         color:#fff;padding:2.5rem 2rem 2rem}
+.header .inner{max-width:1140px;margin:0 auto}
+.header h1{font-size:1.85rem;font-weight:800;letter-spacing:-.3px}
+.header .sub{opacity:.92;margin-top:.4rem;font-size:.95rem}
+.header .meta{margin-top:1.2rem;display:flex;flex-wrap:wrap;gap:.6rem;font-size:.8rem}
+.header .meta span{background:rgba(255,255,255,.14);padding:4px 12px;
+                    border-radius:99px;backdrop-filter:blur(4px)}
+.tldr{background:#0c4a6e;color:#e0f2fe;padding:1.25rem 2rem}
+.tldr .inner{max-width:1140px;margin:0 auto}
+.tldr h2{font-size:.78rem;text-transform:uppercase;letter-spacing:1px;
+         color:#bae6fd;margin-bottom:.6rem;font-weight:700}
+.tldr p{font-size:1rem;line-height:1.65}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+            gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.kpi{background:var(--card);padding:1.4rem 1rem;text-align:center}
+.kpi .val{font-size:2.05rem;font-weight:800;line-height:1}
+.kpi .val.ok{color:var(--green)}
+.kpi .val.warn{color:var(--red)}
+.kpi .val.warn-amber{color:var(--amber)}
+.kpi .lbl{font-size:.7rem;color:var(--text3);margin-top:.4rem;
+          text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+.kpi .sub{font-size:.72rem;color:var(--text3);margin-top:.25rem}
+.content{max-width:1140px;margin:2rem auto;padding:0 1.5rem;display:grid;gap:1.5rem}
+.card{background:var(--card);border:1px solid var(--border);
+       border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden}
+.card-header{padding:.95rem 1.5rem;border-bottom:1px solid var(--border);
+              display:flex;align-items:center;gap:.75rem;background:#FAFBFC}
+.card-header h2{font-size:1rem;font-weight:700}
+.card-icon{width:32px;height:32px;border-radius:8px;display:flex;
+            align-items:center;justify-content:center;font-size:1rem}
+.card-body{padding:1.4rem 1.5rem}
+.card-body p{margin-bottom:.75rem}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+@media(max-width:720px){.two-col{grid-template-columns:1fr}}
+.posture-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+               gap:1rem;margin-top:.5rem}
+.posture-card{padding:1rem;border:1px solid var(--border);border-radius:8px;
+              background:#FAFBFC}
+.posture-card .score{font-size:1.7rem;font-weight:800;line-height:1}
+.posture-card .score.ok{color:var(--green)}
+.posture-card .score.warn{color:var(--red)}
+.posture-card .score.warn-amber{color:var(--amber)}
+.posture-card .label{font-size:.72rem;text-transform:uppercase;
+                     letter-spacing:.6px;color:var(--text3);margin-top:.3rem}
+.posture-card .desc{font-size:.78rem;color:var(--text2);margin-top:.5rem;line-height:1.4}
+.bar{height:6px;background:#E2E8F0;border-radius:99px;overflow:hidden;margin-top:.4rem}
+.bar-fill{height:100%;border-radius:99px}
+.bar-fill.ok{background:var(--green)}
+.bar-fill.warn{background:var(--red)}
+.bar-fill.warn-amber{background:var(--amber)}
+.rec{padding:1rem 1.25rem;border-left:4px solid #94A3B8;background:#fff;
+      border-bottom:1px solid var(--border)}
+.rec:last-child{border-bottom:none}
+.rec.crit{border-left-color:var(--red)}
+.rec.high{border-left-color:var(--amber)}
+.rec.med{border-left-color:var(--blue)}
+.rec .top{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.rec h3{font-size:.96rem;font-weight:700;color:var(--text)}
+.rec dl{display:grid;grid-template-columns:max-content 1fr;gap:.4rem 1rem;
+        margin-top:.6rem;font-size:.85rem}
+.rec dt{color:var(--text3);font-weight:600;text-transform:uppercase;
+        letter-spacing:.4px;font-size:.7rem;align-self:start;padding-top:.15rem}
+.rec dd{color:var(--text2)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+thead{background:#F1F5F9}
+th{padding:.55rem .9rem;text-align:left;font-size:.7rem;text-transform:uppercase;
+   letter-spacing:.5px;color:var(--text2);border-bottom:2px solid var(--border);font-weight:600}
+td{padding:.55rem .9rem;border-bottom:1px solid #F1F5F9}
+tbody tr:nth-child(even) td{background:#FAFBFC}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.72rem;font-weight:700}
+.callout{background:#FFFBEB;border-left:4px solid var(--amber);
+         padding:.85rem 1.25rem;font-size:.85rem;color:#78350f;border-radius:6px}
+.callout.info{background:#EFF6FF;border-left-color:var(--blue);color:#1e40af}
+footer{text-align:center;padding:2.5rem 1rem;font-size:.75rem;
+        color:var(--text3);border-top:1px solid var(--border);margin-top:2rem}
+@media print{
+  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .header,.tldr{-webkit-print-color-adjust:exact}
+  .card,.rec{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="inner">
+    <div style="font-size:.75rem;font-weight:700;letter-spacing:2px;opacity:.9;margin-bottom:.3rem">CISCO SECURE WORKLOAD</div>
+    <h1>Executive Security Posture Summary</h1>
+    <div class="sub">One-page CISO briefing · Cluster demo-cluster.tetrationcloud.com</div>
+    <div class="meta">
+      <span>Snapshot: 2026-07-01 02:00 UTC</span>
+      <span>Generated: 2026-07-01 09:20 UTC</span>
+      <span>Root Scope: demo-root</span>
+      <span>Prepared by: Cisco Secure Workload SE (demo)</span>
+    </div>
+  </div>
+</div>
+<div class="tldr"><div class="inner"><h2>Bottom line</h2><p>Visibility is complete (50/50 agents), but <strong>enforcement is only 24%</strong> and <strong>31 critical CVEs</strong> sit on 8 hosts. The fix is low-risk — ADM policy is ready to roll out tier-by-tier, starting with the databases.</p></div></div>
+<div class="kpi-strip"><div class="kpi"><div class="val ">50</div><div class="lbl">Agents Reporting</div><div class="sub">100% of fleet</div></div><div class="kpi"><div class="val warn">24%</div><div class="lbl">Enforcement Coverage</div><div class="sub">12 enforcing</div></div><div class="kpi"><div class="val warn">31</div><div class="lbl">Critical CVEs</div><div class="sub">across 8 hosts</div></div><div class="kpi"><div class="val warn-amber">4</div><div class="lbl">Risky Ports Exposed</div><div class="sub">RDP/SMB/MSSQL/Redis</div></div><div class="kpi"><div class="val ok">6</div><div class="lbl">Workspaces</div><div class="sub">ADM proposed</div></div></div>
+<div class="content"><div class="card"><div class="card-header"><div class="card-icon" style="background:#dbeafe">📊</div><h2>Posture at a glance</h2></div><div class="card-body"><div class="posture-grid"><div class="posture-card"><div class="score warn">24%</div><div class="label">Segmentation</div><div class="bar"><div class="bar-fill warn" style="width:24%"></div></div><div class="desc">12/50 hosts enforcing. Database and legacy tiers still open.</div></div><div class="posture-card"><div class="score warn-amber">62%</div><div class="label">Vulnerability Hygiene</div><div class="bar"><div class="bar-fill warn-amber" style="width:62%"></div></div><div class="desc">31 criticals concentrated on 8 hosts; most are patchable.</div></div><div class="posture-card"><div class="score ok">100%</div><div class="label">Visibility</div><div class="bar"><div class="bar-fill ok" style="width:100%"></div></div><div class="desc">Every workload is reporting flows — full east-west telemetry.</div></div></div></div></div><div class="card"><div class="card-header"><div class="card-icon" style="background:#fee2e2">🎯</div><h2>Key findings</h2></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Area</th><th>State</th><th>Headline</th></tr></thead><tbody><tr><td>Visibility</td><td><span class="badge" style="background:#f1f5f9;color:#475569">Good</span></td><td>All 50 agents reporting; ADM has mapped 6 workspaces.</td></tr><tr><td>Segmentation</td><td><span class="badge" style="background:#fee2e2;color:#991b1b">At risk</span></td><td>Only 24% enforcing; crown-jewel DBs unprotected.</td></tr><tr><td>Vulnerabilities</td><td><span class="badge" style="background:#fef3c7;color:#92400e">Attention</span></td><td>31 critical CVEs on 8 hosts, incl. BlueKeep & EternalBlue.</td></tr><tr><td>Risky services</td><td><span class="badge" style="background:#fef3c7;color:#92400e">Attention</span></td><td>RDP, SMB, MSSQL, Redis observed on flat paths.</td></tr></tbody></table></div></div></div><div class="card"><div class="card-header"><div class="card-icon" style="background:#dbeafe">🛡</div><h2>The one-page story</h2></div><div class="card-body"><p>The cluster has <strong>complete visibility</strong> — every workload reports flows and ADM has already proposed policy for six workspaces. The gap is <strong>enforcement</strong>: only a quarter of the fleet actively blocks traffic, and the unprotected hosts are the ones that matter most (databases, the jump host, a legacy Windows box).</p><p>Closing the gap is low-risk: the policy is already written by ADM and can be rolled out tier-by-tier behind a short observation window. The recommended first move is the database tier, which removes the largest blast-radius exposure immediately.</p></div></div></div>
+<footer>Synthetic demonstration report · csw-mcp examples · demo-cluster.tetrationcloud.com · all data fictional (RFC 5737 / placeholder vocabulary)</footer>
+</body>
+</html>
