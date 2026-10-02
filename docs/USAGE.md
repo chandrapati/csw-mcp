@@ -2,6 +2,11 @@
 
 How to actually *use* `csw-mcp` once it's wired into Cursor.
 
+New to the product? The [README glossary](../README.md#new-to-cisco-secure-workload)
+defines agent, scope, workspace, flow, and blast radius in plain language.
+The longer learning path is
+[CSW User Education](https://github.com/chandrapati/CSW-User-Education).
+
 ## How a tool call flows
 
 ```mermaid

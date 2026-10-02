@@ -3,6 +3,13 @@
 Five realistic SE scenarios showing how `csw-mcp` turns a natural-language
 question into a chain of read-only tool calls and a polished deliverable.
 
+If the terms (enforcement, ADM, blast radius) are new, read the
+[glossary in the main README](../README.md#new-to-cisco-secure-workload) first.
+The same ideas, taught from scratch, are in
+[CSW User Education](https://github.com/chandrapati/CSW-User-Education).
+The blast-radius scenario pairs with the
+[blast radius demo](https://github.com/chandrapati/csw_blast_radius_demo).
+
 > **Everything here is synthetic.** Hostnames use the approved placeholder
 > vocabulary (`web-01`, `app-01`, `db-prod-01`, `legacy-win-01`, …), IPs are
 > RFC 5737 documentation ranges, and the cluster is
