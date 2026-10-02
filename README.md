@@ -142,18 +142,22 @@ See **[docs/USAGE.md](docs/USAGE.md)** for example prompts and when to use each 
 
 ---
 
-## Ready to show
+## Tested and working
 
-Live-tested on a Secure Workload SaaS tenant on **2 Oct 2026**. These features returned data and are ready to demo. The running list is **[docs/TESTED.md](docs/TESTED.md)**.
+[![Live test](https://img.shields.io/badge/live%20test-2%20Oct%202026-059669)](docs/TESTED.md)
+[![SaaS tenant](https://img.shields.io/badge/tenant-Secure%20Workload%20SaaS-00bceb)](docs/TESTED.md)
 
-| Ask this | Feature |
-|---|---|
-| "Show me the scope tree." | `list_scopes` |
-| "How many agents are reporting, and what are their names?" | `list_sensors` |
-| "What workspaces are defined?" | `list_workspaces` |
-| "Look up this IP in inventory." | `search_inventory`, `get_workload` |
-| "Which forensic profiles are configured?" | `list_forensic_profiles` |
-| "How many agents and scopes are on this cluster?" | `summarize_cluster_posture` (fleet size and scope count) |
+Confirmed on a live SaaS tenant. Each row below returned data. Full notes: **[docs/TESTED.md](docs/TESTED.md)**.
+
+| | Feature | What you get | Try this |
+|---|---|---|---|
+| ✅ | `list_scopes` | The scope tree | “Show me the scope tree.” |
+| ✅ | `list_sensors` | Agents, hostnames, platforms, addresses | “List the agents on this cluster.” |
+| ✅ | `list_workspaces` | Application workspaces | “What workspaces are defined?” |
+| ✅ | `search_inventory` | Inventory matches for an IP or field | “Find the workload for this IP.” |
+| ✅ | `get_workload` | One workload record | “Show me the workload at this IP.” |
+| ✅ | `list_forensic_profiles` | Configured forensic profiles | “Which forensic profiles are on this cluster?” |
+| ✅ | `summarize_cluster_posture` | Agent count and scope count | “How many agents and scopes are reporting?” |
 
 ---
 
