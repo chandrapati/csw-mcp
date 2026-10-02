@@ -4,7 +4,7 @@
 > placeholder vocabulary, IPs are RFC 5737 ranges, cluster is
 > `demo-cluster.tetrationcloud.com`.
 
-## The question an SE asks
+## The question
 
 > *"Write the POV closeout — what we built, what we measured, and what's next."*
 

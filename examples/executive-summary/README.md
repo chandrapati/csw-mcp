@@ -4,7 +4,7 @@
 > placeholder vocabulary, IPs are RFC 5737 ranges, cluster is
 > `demo-cluster.tetrationcloud.com`.
 
-## The question an SE asks
+## The question
 
 > *"Give me the one-page CISO summary for this cluster."*
 

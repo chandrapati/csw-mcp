@@ -4,7 +4,7 @@
 > placeholder vocabulary, IPs are RFC 5737 documentation ranges, and the cluster
 > is `demo-cluster.tetrationcloud.com`. It matches no real cluster.
 
-## The question an SE asks
+## The question
 
 > *"Which hosts are not under enforcement, and which gaps should I close first?"*
 

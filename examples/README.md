@@ -1,6 +1,6 @@
 # csw-mcp examples
 
-Five realistic SE scenarios showing how `csw-mcp` turns a natural-language
+Five realistic scenarios showing how `csw-mcp` turns a natural-language
 question into a chain of read-only tool calls and a polished deliverable.
 
 If the terms (enforcement, ADM, blast radius) are new, read the

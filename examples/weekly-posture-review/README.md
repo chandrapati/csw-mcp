@@ -4,7 +4,7 @@
 > placeholder vocabulary, IPs are RFC 5737 ranges, cluster is
 > `demo-cluster.tetrationcloud.com`.
 
-## The question an SE asks
+## The question
 
 > *"What changed in our posture since last week?"*
 
