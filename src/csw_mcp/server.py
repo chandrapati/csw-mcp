@@ -417,15 +417,9 @@ def list_policies_for_workload(uuid: str) -> Dict[str, Any]:
     """
     if not uuid:
         return {"error": "`uuid` is required (get it from list_sensors)."}
-    result = csw_client.results_or_error(
+    return csw_client.results_or_error(
         csw_client.get(f"/openapi/v1/workload/{uuid}/policies")
     )
-    if result.get("status") == 404:
-        result["hint"] = (
-            "This cluster has no per-workload policy route. "
-            "Use get_workspace_policies with a workspace id from list_workspaces."
-        )
-    return result
 
 
 # ---------------------------------------------------------------------------
