@@ -186,7 +186,11 @@ Confirmed on a live SaaS tenant. Each row below returned data. Full notes: **[do
 | ✅ | `search_inventory` | Inventory matches for an IP or field | “Find the workload for this IP.” |
 | ✅ | `get_workload` | One workload record | “Show me the workload at this IP.” |
 | ✅ | `list_forensic_profiles` | Configured forensic profiles | “Which forensic profiles are on this cluster?” |
-| ✅ | `summarize_cluster_posture` | Agent count and scope count | “How many agents and scopes are reporting?” |
+| ✅ | `summarize_cluster_posture` | Agent count, scope count, and enforcement coverage | “How many agents are enforcing?” |
+| ✅ | `get_workspace_policies` | Absolute and default policies for a workspace | “Show the policies in this workspace.” |
+| ✅ | `search_flows` | Recent flows in a scope | “Show recent flows in the root scope.” |
+| ✅ | `get_conversations` | ADM conversations for a workspace | “Show the conversations for this workspace.” |
+| ✅ | `top_risky_flows` | Risky ports with recent flow activity | “Which risky ports have recent traffic?” |
 
 ---
 

@@ -13,7 +13,11 @@ Latest run: **2 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. 
 | ✅ | `search_inventory` | Inventory matches by IP or another field | “Find the workload for this IP.” |
 | ✅ | `get_workload` | One workload record for an address that exists | “Show me the workload at this IP.” |
 | ✅ | `list_forensic_profiles` | Configured forensic profiles, including built-in profiles | “Which forensic profiles are on this cluster?” |
-| ✅ | `summarize_cluster_posture` | How many agents and scopes are on the cluster | “How many agents and scopes are reporting?” |
+| ✅ | `summarize_cluster_posture` | Agent count, scope count, and how many agents are enforcing | “How many agents are enforcing?” |
+| ✅ | `get_workspace_policies` | Absolute and default policies for one workspace | “Show the policies in this workspace.” |
+| ✅ | `search_flows` | Recent flow records for a scope | “Show recent flows in the root scope.” |
+| ✅ | `get_conversations` | ADM conversations for one workspace | “Show the conversations for this workspace.” |
+| ✅ | `top_risky_flows` | Risky ports that have recent flow activity | “Which risky ports have recent traffic?” |
 | ✅ | `csw://cluster/info` | Confirmation the server is configured and the tenant answers | “Is csw-mcp connected?” |
 
 A feature is added here after a live call returns HTTP 200 and a result you can put on screen. Update the date when the next run confirms the list.

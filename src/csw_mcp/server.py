@@ -82,6 +82,59 @@ def _time_window(hours: int) -> tuple[str, str]:
     return _iso(now - timedelta(hours=hours)), _iso(now)
 
 
+def _epoch_window(hours: int) -> tuple[int, int]:
+    """Return (t0, t1) as Unix epoch seconds. SaaS flow search requires integers."""
+    t1 = int(time.time())
+    return t1 - hours * 3600, t1
+
+
+def _root_scope_name() -> str:
+    """Name of the top-level scope. Flow search rejects a body without scopeName.
+
+    Order: $CSW_ROOT_SCOPE if set, otherwise the scope with no parent. Cached
+    briefly so a multi-port scan does not re-list scopes on every call.
+    """
+    explicit = os.environ.get("CSW_ROOT_SCOPE", "").strip()
+    if explicit:
+        return explicit
+
+    def produce() -> str:
+        response = csw_client.get("/openapi/v1/app_scopes")
+        if response.get("status") != 200:
+            return ""
+        scopes = csw_client.extract_results(response)
+        roots = [
+            s for s in scopes
+            if isinstance(s, dict) and not s.get("parent_app_scope_id") and s.get("name")
+        ]
+        if not roots:
+            return ""
+        roots.sort(key=lambda s: str(s.get("name")).count(":"))
+        return str(roots[0]["name"])
+
+    return _cached("root_scope", produce)
+
+
+def _require_scope(scope_name: str) -> tuple[str, Optional[Dict[str, Any]]]:
+    """Resolve scopeName. Returns (name, None) or ("", error-dict)."""
+    scope = (scope_name or "").strip() or _root_scope_name()
+    if scope:
+        return scope, None
+    return "", {
+        "error": "scopeName is required by this CSW API.",
+        "hint": "Pass scope_name, or set CSW_ROOT_SCOPE to the root scope (for example ACME).",
+    }
+
+
+# A non-empty filter is required by flow search on SaaS clusters. This matches
+# every source address and is only used when the caller did not supply one.
+_MATCH_ALL_FLOWS: Dict[str, Any] = {
+    "type": "subnet",
+    "field": "src_address",
+    "value": "0.0.0.0/0",
+}
+
+
 def _template_dir() -> Optional[Path]:
     """Locate the generic CSW_POV_Template via $CSW_POV_TEMPLATE (never hard-coded).
 
@@ -268,14 +321,17 @@ def summarize_cluster_posture() -> Dict[str, Any]:
     total = len(sensors)
 
     by_type: Dict[str, int] = {}
+    enforcing = 0
     for s in sensors:
         if not isinstance(s, dict):
             continue
-        agent_type = s.get("agent_type") or "UNKNOWN"
+        # SaaS clusters return agent_type as an integer. Enforcement is a
+        # separate boolean, which is what coverage actually measures.
+        agent_type = str(s.get("agent_type") or "UNKNOWN")
         by_type[agent_type] = by_type.get(agent_type, 0) + 1
-
-    enforcing = by_type.get(csw_client.AGENT_TYPES.ENFORCER, 0)
-    visibility = by_type.get(csw_client.AGENT_TYPES.VISIBILITY, 0)
+        if s.get("enforcement_enabled"):
+            enforcing += 1
+    visibility = total - enforcing
     coverage_pct = round((enforcing / total) * 100, 1) if total else 0.0
 
     scopes_resp = csw_client.get("/openapi/v1/app_scopes")
@@ -329,9 +385,24 @@ def get_workspace_policies(app_id: str) -> Dict[str, Any]:
     """
     if not app_id:
         return {"error": "`app_id` is required (get it from list_workspaces)."}
-    return csw_client.results_or_error(
-        csw_client.get(f"/openapi/v1/applications/{app_id}/policies")
-    )
+    response = csw_client.get(f"/openapi/v1/applications/{app_id}/policies")
+    if response.get("status") != 200:
+        return csw_client.results_or_error(response)
+    data = response.get("data")
+    # This endpoint returns two lists, not a single "results" array.
+    if isinstance(data, dict) and (
+        "absolute_policies" in data or "default_policies" in data
+    ):
+        absolute = data.get("absolute_policies") or []
+        default = data.get("default_policies") or []
+        return {
+            "count": len(absolute) + len(default),
+            "absolute_count": len(absolute),
+            "default_count": len(default),
+            "catch_all_action": data.get("catch_all_action"),
+            "results": list(absolute) + list(default),
+        }
+    return csw_client.results_or_error(response)
 
 
 @mcp.tool()
@@ -346,9 +417,15 @@ def list_policies_for_workload(uuid: str) -> Dict[str, Any]:
     """
     if not uuid:
         return {"error": "`uuid` is required (get it from list_sensors)."}
-    return csw_client.results_or_error(
+    result = csw_client.results_or_error(
         csw_client.get(f"/openapi/v1/workload/{uuid}/policies")
     )
+    if result.get("status") == 404:
+        result["hint"] = (
+            "This cluster has no per-workload policy route. "
+            "Use get_workspace_policies with a workspace id from list_workspaces."
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -356,30 +433,50 @@ def list_policies_for_workload(uuid: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def search_flows(filter_json: str = "", hours: int = 24, limit: int = _DEFAULT_LIMIT) -> Dict[str, Any]:
+def search_flows(
+    filter_json: str = "",
+    hours: int = 24,
+    limit: int = _DEFAULT_LIMIT,
+    scope_name: str = "",
+) -> Dict[str, Any]:
     """Search network flows over a recent time window.
 
     Args:
         filter_json: A CSW flow filter as a JSON string, e.g.
                      '{"type":"eq","field":"dst_port","value":3389}'. Pass an
-                     empty string for no filter (all flows in the window).
+                     empty string to match all sources in the scope.
         hours:       Look-back window in hours (1–720, default 24).
         limit:       Max flow records to return (1–1000).
+        scope_name:  CSW scopeName. Required by the API. Omit to use the
+                     cluster root scope (or $CSW_ROOT_SCOPE).
 
-    Runs a read-only `POST /openapi/v1/flowsearch` with t0 = now-hours, t1 = now.
+    Runs a read-only `POST /openapi/v1/flowsearch`. Timestamps are Unix epoch
+    seconds, which SaaS clusters require. scopeName is always sent.
     """
     hours = _clamp_hours(hours)
-    flt: Any = {}
+    scope, scope_err = _require_scope(scope_name)
+    if scope_err:
+        return scope_err
+    flt: Any = dict(_MATCH_ALL_FLOWS)
     if filter_json:
         try:
             flt = json.loads(filter_json)
         except json.JSONDecodeError as exc:
             return {"error": f"Invalid filter_json: {exc}", "hint": 'Example: {"type":"eq","field":"dst_port","value":3389}'}
-    t0, t1 = _time_window(hours)
-    body = {"t0": t0, "t1": t1, "filter": flt, "limit": _clamp_limit(limit)}
+        if not flt:
+            flt = dict(_MATCH_ALL_FLOWS)
+    t0, t1 = _epoch_window(hours)
+    body = {
+        "t0": t0,
+        "t1": t1,
+        "filter": flt,
+        "scopeName": scope,
+        "limit": _clamp_limit(limit),
+    }
     result = csw_client.results_or_error(csw_client.search("/openapi/v1/flowsearch", body))
     if "results" in result:
         result["window_hours"] = hours
+        result["scope_name"] = scope
     return result
 
 
@@ -391,23 +488,32 @@ def get_conversations(app_id: str, version: Optional[int] = None) -> Dict[str, A
         app_id:  The workspace/application id (from `list_workspaces`).
         version: Optional ADM version; omit for the latest.
 
-    Reads `GET /openapi/v1/conversations/{app_id}`, paginating up to a safety cap.
-    Conversations are the raw src→dst:port pairs ADM used to propose policy.
+    The API is `POST /openapi/v1/conversations/{app_id}` and it requires an ADM
+    `version`. Omit version to use the workspace's latest_adm_version.
+    Conversations are the src→dst:port pairs ADM used to propose policy.
     """
     if not app_id:
         return {"error": "`app_id` is required (get it from list_workspaces)."}
     if not csw_client.is_configured():
         return csw_client.config_error()
 
-    params: Dict[str, Any] = {}
-    if version is not None:
-        params["version"] = version
+    if version is None:
+        app = csw_client.get(f"/openapi/v1/applications/{app_id}")
+        if app.get("status") != 200:
+            return csw_client.results_or_error(app)
+        data = app.get("data") if isinstance(app.get("data"), dict) else {}
+        version = int(data.get("latest_adm_version") or 1)
+
+    body = {"version": int(version)}
+    probe = csw_client.search(f"/openapi/v1/conversations/{app_id}", {**body, "limit": 1})
+    if probe.get("status") != 200:
+        return csw_client.results_or_error(probe)
 
     collected: List[Any] = []
     for _page, results in csw_client.paginate(
-        "GET",
+        "POST",
         f"/openapi/v1/conversations/{app_id}",
-        params=params or None,
+        body=body,
         batch_size=100,
         max_pages=_MAX_FLOW_PAGES,
     ):
@@ -415,13 +521,14 @@ def get_conversations(app_id: str, version: Optional[int] = None) -> Dict[str, A
 
     return {
         "count": len(collected),
+        "version": int(version),
         "truncated": len(collected) >= 100 * _MAX_FLOW_PAGES,
         "results": collected,
     }
 
 
 @mcp.tool()
-def top_risky_flows(hours: int = 24, limit: int = 20) -> Dict[str, Any]:
+def top_risky_flows(hours: int = 24, limit: int = 20, scope_name: str = "") -> Dict[str, Any]:
     """Rank risky-service exposure by counting recent flows to sensitive ports.
 
     Scans the last `hours` for flows to high-risk management/data ports (RDP,
@@ -431,23 +538,31 @@ def top_risky_flows(hours: int = 24, limit: int = 20) -> Dict[str, Any]:
     Args:
         hours: Look-back window in hours (1–720, default 24).
         limit: Max flow samples to inspect per port (1–1000).
+        scope_name: CSW scopeName. Required by flow search. Omit to use the
+                    cluster root scope (or $CSW_ROOT_SCOPE).
     """
     if not csw_client.is_configured():
         return csw_client.config_error()
     hours = _clamp_hours(hours)
+    scope, scope_err = _require_scope(scope_name)
+    if scope_err:
+        return scope_err
     per_port_cap = _clamp_limit(limit)
-    t0, t1 = _time_window(hours)
+    t0, t1 = _epoch_window(hours)
 
     rankings: List[Dict[str, Any]] = []
+    errors: List[str] = []
     for port, label in RISKY_PORTS.items():
         body = {
             "t0": t0,
             "t1": t1,
             "filter": {"type": "eq", "field": "dst_port", "value": port},
+            "scopeName": scope,
             "limit": per_port_cap,
         }
         resp = csw_client.search("/openapi/v1/flowsearch", body)
         if resp.get("status") != 200:
+            errors.append(f"{label}/{port}: HTTP {resp.get('status')}")
             continue
         hits = len(csw_client.extract_results(resp))
         if hits:
@@ -459,12 +574,17 @@ def top_risky_flows(hours: int = 24, limit: int = 20) -> Dict[str, Any]:
             })
 
     rankings.sort(key=lambda r: r["flow_count"], reverse=True)
-    return {
+    out: Dict[str, Any] = {
         "window_hours": hours,
+        "scope_name": scope,
         "ports_with_activity": len(rankings),
         "note": "flow_count is a sampled count capped per port; capped=true means more exist.",
         "results": rankings,
     }
+    if errors and not rankings:
+        out["error"] = "Flow search failed for every risky port."
+        out["detail"] = errors[:4]
+    return out
 
 
 # ---------------------------------------------------------------------------
