@@ -24,18 +24,31 @@ that lets MCP clients (Cursor, Claude Desktop, …) query a **Cisco Secure Workl
 use CSW and get posture answers without writing HMAC-signed API calls.
 
 ```mermaid
-flowchart LR
-    U([You, in natural language]) --> C[MCP Client<br/>Cursor / Claude Desktop]
-    C -- stdio --> S[csw-mcp server<br/>FastMCP]
-    S --> V[Vendored CSW client<br/>HMAC-SHA256 auth]
-    V -- HTTPS GET / search --> API[(Cisco Secure Workload<br/>OpenAPI v1)]
-    API -- JSON --> V --> S -- tool result --> C --> U
-    classDef cisco fill:#00bceb,stroke:#005073,color:#fff;
-    class API cisco;
+flowchart TB
+    ask["1 · Ask in Cursor or Claude Desktop"]
+    local["2 · csw-mcp on your laptop<br/>reads the cluster URL and API key from .env"]
+    tenant["3 · Your Secure Workload tenant"]
+    reply["4 · The answer comes back in the chat"]
+
+    ask -->|"a plain question"| local
+    local -->|"read-only"| tenant
+    tenant -->|"scopes · agents · workspaces<br/>inventory · forensic profiles"| reply
+
+    classDef step fill:#F8FAFC,stroke:#005073,color:#020617;
+    classDef cisco fill:#00bceb,stroke:#005073,color:#ffffff;
+    class ask,local,reply step;
+    class tenant cisco;
 ```
 
-> **Read-only by design.** No tool creates, updates, or deletes anything on the
-> cluster. Transport is **stdio only** — there is no network listener.
+Start with one of these. They are the [current capabilities](#current-capabilities) confirmed on a live tenant:
+
+- “Show me the scope tree.”
+- “List the agents on this cluster.”
+- “What workspaces are defined?”
+- “Find the workload for this IP.”
+- “Which forensic profiles are on this cluster?”
+
+The server only reads. It does not create, change, or delete anything on the tenant, and it listens only on a local stdio pipe. The HMAC signing and module layout are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 This repo is companion tooling, **not** official Cisco documentation. Confirm
 behavior against your cluster's in-product help and the
