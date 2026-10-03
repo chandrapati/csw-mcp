@@ -2,7 +2,7 @@
 
 # csw-mcp
 
-**Query Cisco Secure Workload in natural language — a read-only MCP server for Cursor & Claude Desktop.**
+**Query Cisco Secure Workload in natural language — a read-only MCP server for Cursor, Claude Desktop, Grok, Codex, and Gemini.**
 
 ![Visitors](https://visitor-badge.laobi.icu/badge?page_id=chandrapati.csw-mcp&left_text=visitors)
 
@@ -21,7 +21,7 @@
 ## What it is
 
 `csw-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server
-that lets MCP clients (Cursor, Claude Desktop, …) query a **Cisco Secure Workload
+that lets MCP clients (Cursor, Claude Desktop, Grok, Codex, and Gemini) query a **Cisco Secure Workload
 (CSW / Tetration)** cluster in plain English. It is for anyone who wants to
 use CSW and get posture answers without writing HMAC-signed API calls.
 
@@ -29,7 +29,7 @@ use CSW and get posture answers without writing HMAC-signed API calls.
 flowchart TB
     ui["1 · In the Secure Workload UI<br/>User Menu → API Keys → Create API Key"]
     env["2 · On your laptop, copy .env.example to .env<br/>CSW_API_URL · CSW_API_KEY · CSW_API_SECRET"]
-    ask["3 · Ask in Cursor or Claude Desktop"]
+    ask["3 · Ask in Cursor, Claude Desktop,<br/>Grok, Codex, or Gemini"]
     local["4 · csw-mcp reads that .env<br/>and signs each call with the API secret"]
     tenant["5 · Your Secure Workload tenant"]
     reply["6 · The answer comes back in the chat"]

@@ -7,7 +7,7 @@ Cisco Secure Workload OpenAPI. It is deliberately small.
 
 ```mermaid
 flowchart TB
-    subgraph Client["MCP Client (Cursor / Claude Desktop)"]
+    subgraph Client["MCP Client (Cursor, Claude Desktop, Grok, Codex, Gemini)"]
         LLM[LLM + tool-calling]
     end
 
