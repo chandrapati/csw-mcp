@@ -142,7 +142,7 @@ See **[docs/USAGE.md](docs/USAGE.md)** for example prompts and when to use each 
 
 ---
 
-## Tested and working
+## Current capabilities
 
 [![Live test](https://img.shields.io/badge/live%20test-2%20Oct%202026-059669)](docs/TESTED.md)
 [![SaaS tenant](https://img.shields.io/badge/tenant-Secure%20Workload%20SaaS-00bceb)](docs/TESTED.md)
