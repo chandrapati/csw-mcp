@@ -25,20 +25,34 @@ use CSW and get posture answers without writing HMAC-signed API calls.
 
 ```mermaid
 flowchart TB
-    ask["1 · Ask in Cursor or Claude Desktop"]
-    local["2 · csw-mcp on your laptop<br/>reads the cluster URL and API key from .env"]
-    tenant["3 · Your Secure Workload tenant"]
-    reply["4 · The answer comes back in the chat"]
+    ui["1 · In the Secure Workload UI<br/>User Menu → API Keys → Create API Key"]
+    env["2 · On your laptop, copy .env.example to .env<br/>CSW_API_URL · CSW_API_KEY · CSW_API_SECRET"]
+    ask["3 · Ask in Cursor or Claude Desktop"]
+    local["4 · csw-mcp reads that .env<br/>and signs each call with the API secret"]
+    tenant["5 · Your Secure Workload tenant"]
+    reply["6 · The answer comes back in the chat"]
 
-    ask -->|"a plain question"| local
-    local -->|"read-only"| tenant
+    ui --> env --> ask --> local
+    local -->|"read-only, no OAuth"| tenant
     tenant -->|"scopes · agents · workspaces<br/>inventory · forensic profiles"| reply
 
     classDef step fill:#F8FAFC,stroke:#005073,color:#020617;
+    classDef cred fill:#FFFBEB,stroke:#d97706,color:#020617;
     classDef cisco fill:#00bceb,stroke:#005073,color:#ffffff;
     class ask,local,reply step;
+    class ui,env cred;
     class tenant cisco;
 ```
+
+**Where the cluster info goes:** a file named `.env` in this repo (it stays on your machine and is never committed). No OAuth, no browser login, and no extra token service. Secure Workload uses an API key plus its matching secret. Create that pair in the product UI under **User Menu → API Keys → Create API Key**, then put these three lines in `.env`:
+
+```bash
+CSW_API_URL=https://your-cluster.tetrationcloud.com
+CSW_API_KEY=your_api_key_here
+CSW_API_SECRET=your_api_secret_here
+```
+
+`CSW_API_URL` is the cluster address only, with no path on the end. The key needs read access for sensors, flows, and policy. Setup steps are in [docs/INSTALL.md](docs/INSTALL.md).
 
 Start with one of these. They are the [current capabilities](#current-capabilities) confirmed on a live tenant:
 
