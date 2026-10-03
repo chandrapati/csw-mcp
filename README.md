@@ -4,6 +4,8 @@
 
 **Query Cisco Secure Workload in natural language — a read-only MCP server for Cursor & Claude Desktop.**
 
+![Visitors](https://visitor-badge.laobi.icu/badge?page_id=chandrapati.csw-mcp&left_text=visitors)
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-00bceb.svg)](https://modelcontextprotocol.io)
