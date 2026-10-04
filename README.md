@@ -64,7 +64,7 @@ Start with one of these. They are the [current capabilities](#current-capabiliti
 - “Find the workload for this IP.”
 - “Which forensic profiles are on this cluster?”
 
-The server only reads. It does not create, change, or delete anything on the tenant, and it listens only on a local stdio pipe. The HMAC signing and module layout are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The server only reads. It does not create, change, or delete anything on the tenant, and it listens only on a local stdio pipe. If a read does not come back the first time, the server waits briefly and tries again a few times so the data still arrives. The HMAC signing and module layout are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 This repo is companion tooling, **not** official Cisco documentation. Confirm
 behavior against your cluster's in-product help and the
@@ -241,6 +241,7 @@ read capabilities: `sensor_management`, `flow_inventory_query`, `app_policy_mana
 - **stdio transport.** No listening socket → no DNS-rebinding / CSRF surface.
 - **Single-purpose tools.** No "run arbitrary request" escape hatch.
 - **Bounded.** Result limits are clamped; aggregators cap fan-out and pagination.
+- **Retries.** A read that does not come back the first time is tried again a few times, with a short wait between tries, so the data still arrives.
 - **No secrets in code.** Credentials load from a git-ignored `.env`; nothing is logged.
 - **Minimal output.** Tool results are projected to the fields you need.
 

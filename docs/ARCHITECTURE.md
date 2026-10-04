@@ -63,7 +63,7 @@ sequenceDiagram
     K->>A: make_request("GET", "/openapi/v1/sensors")
     A->>A: sign HMAC-SHA256(secret, canonical request)
     A->>X: HTTPS GET + Id / Authorization / Timestamp headers
-    X-->>A: JSON (sensors)
+    X-->>A: JSON (sensors), or a busy response that is signed again and retried a few times
     A-->>K: {status, data}
     K-->>S: normalized results
     S->>S: tally agent_type, compute coverage %
@@ -97,7 +97,11 @@ can cause 401s — see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 > `csw-mcp` only ever issues GET requests and read-only *search* POSTs
 > (`/inventory/search`, `/flowsearch`). There is no code path that mutates the
-> cluster.
+> cluster. A GET or search POST that comes back busy (HTTP 429 or 503) is
+> signed again and tried a few more times. The wait follows `Retry-After`
+> when the cluster sends it, otherwise it doubles from half a second and
+> stays under 8 seconds. `CSW_RETRY_ATTEMPTS` (default 5, including the
+> first call) and `CSW_RETRY_MAX_SLEEP` change those bounds.
 
 ## Why these choices
 
