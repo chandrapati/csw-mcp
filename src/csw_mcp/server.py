@@ -19,6 +19,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -41,6 +42,8 @@ _DEFAULT_LIMIT = 100
 _MAX_HOURS = 24 * 30            # flow queries: cap the look-back window
 _MAX_HOSTS_SCANNED = 250        # top_vulnerable_hosts: cap hosts examined
 _MAX_FLOW_PAGES = 5             # pagination safety cap for flow/conversation walks
+_MAX_WORKSPACES = 30            # risky-port audit: cap workspace policy reads
+_MAX_PROCESS_DAYS = 7           # long-lived process look-back
 
 # Risky service ports surfaced by top_risky_flows (port -> label).
 RISKY_PORTS: Dict[int, str] = {
@@ -53,6 +56,32 @@ RISKY_PORTS: Dict[int, str] = {
     6379: "Redis",
     27017: "MongoDB",
 }
+
+# (proto name, port, tier, service) — same catalog as risky_port_audit.py.
+# Only ALLOW policies that open one of these ports are findings.
+_POLICY_RISK: List[tuple] = [
+    ("TCP", 22, "CRITICAL", "SSH"),
+    ("TCP", 23, "CRITICAL", "Telnet"),
+    ("TCP", 135, "CRITICAL", "RPC"),
+    ("UDP", 137, "CRITICAL", "NetBIOS-NS"),
+    ("UDP", 138, "CRITICAL", "NetBIOS-DS"),
+    ("TCP", 139, "CRITICAL", "NetBIOS-SSN"),
+    ("TCP", 445, "CRITICAL", "SMB"),
+    ("TCP", 1433, "CRITICAL", "MSSQL"),
+    ("TCP", 3306, "CRITICAL", "MySQL"),
+    ("TCP", 3389, "CRITICAL", "RDP"),
+    ("TCP", 5432, "CRITICAL", "PostgreSQL"),
+    ("TCP", 21, "HIGH", "FTP"),
+    ("TCP", 25, "HIGH", "SMTP"),
+    ("UDP", 161, "HIGH", "SNMP"),
+    ("TCP", 2375, "HIGH", "Docker API"),
+    ("TCP", 6379, "HIGH", "Redis"),
+    ("TCP", 9200, "HIGH", "Elasticsearch"),
+    ("TCP", 27017, "HIGH", "MongoDB"),
+    ("TCP", 5900, "MEDIUM", "VNC"),
+]
+_PROTO_NAME = {1: "ICMP", 6: "TCP", 17: "UDP", 0: "Any"}
+_MITRE_ID = re.compile(r"T\d{4}(?:\.\d{3})?")
 
 
 def _clamp_limit(limit: int) -> int:
@@ -201,6 +230,55 @@ def _count_by_severity(cves: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _top_counts(counter: Dict[Any, int], limit: int = 8) -> List[Dict[str, Any]]:
+    ranked = sorted(counter.items(), key=lambda kv: -kv[1])[:limit]
+    return [{"name": name, "count": count} for name, count in ranked]
+
+
+def _marked(flow: Dict[str, Any], field: str) -> bool:
+    """True when a flow flag is set. SaaS returns the label string, not a boolean."""
+    value = flow.get(field)
+    if value is True:
+        return True
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _flow_verdict(flow: Dict[str, Any]) -> str:
+    """Forward policy result. Handles the action string and the per-verdict flags."""
+    action = str(flow.get("fwd_policy_action") or "").upper()
+    if "REJECT" in action or _marked(flow, "fwd_policy_rejected"):
+        return "rejected"
+    if "ESCAPE" in action or _marked(flow, "fwd_policy_escaped"):
+        return "escaped"
+    if "PERMIT" in action or _marked(flow, "fwd_policy_permitted"):
+        return "permitted"
+    return "unknown"
+
+
+def _policy_ports(l4_params: Any) -> List[Dict[str, Any]]:
+    """Risky ports an ALLOW policy actually opens. Empty port list means all ports."""
+    hits: List[Dict[str, Any]] = []
+    seen = set()
+    for param in l4_params or []:
+        if not isinstance(param, dict):
+            continue
+        proto = _PROTO_NAME.get(param.get("proto"), str(param.get("proto")))
+        span = param.get("port") or []
+        for cat_proto, port, tier, service in _POLICY_RISK:
+            if proto not in (cat_proto, "Any"):
+                continue
+            if span and len(span) >= 2:
+                low, high = span[0], span[1]
+                if not (low <= port <= high):
+                    continue
+            key = (cat_proto, port)
+            if key in seen:
+                continue
+            seen.add(key)
+            hits.append({"proto": cat_proto, "port": port, "tier": tier, "service": service})
+    return hits
+
+
 def _sensor_summary(sensor: Dict[str, Any]) -> Dict[str, Any]:
     """Project a raw sensor record down to the fields users actually ask about."""
     return {
@@ -257,6 +335,7 @@ def search_inventory(
     field: str = "ip",
     match: str = "eq",
     limit: int = _DEFAULT_LIMIT,
+    scope_name: str = "",
 ) -> Dict[str, Any]:
     """Search cluster inventory for workloads matching a field/value filter.
 
@@ -267,14 +346,19 @@ def search_inventory(
         match:  CSW filter operator — "eq" (exact), "contains", "subnet", etc.
                 Defaults to "eq".
         limit:  Max results to return (1–1000).
+        scope_name: Inventory scopeName. Omit to use the cluster root scope.
 
-    Runs a read-only `POST /openapi/v1/inventory/search`. Returns a count and
-    the matching inventory records.
+    Runs a read-only `POST /openapi/v1/inventory/search`. scopeName is always
+    sent, matching the field scripts. Returns a count and the matching records.
     """
     if not value:
         return {"error": "`value` is required.", "hint": "Pass the value to match, e.g. an IP or hostname."}
+    scope, scope_err = _require_scope(scope_name)
+    if scope_err:
+        return scope_err
     body = {
         "filter": {"type": match, "field": field, "value": value},
+        "scopeName": scope,
         "limit": _clamp_limit(limit),
     }
     return csw_client.results_or_error(
@@ -292,8 +376,12 @@ def get_workload(address: str) -> Dict[str, Any]:
     """
     if not address:
         return {"error": "`address` is required (an IP address)."}
+    scope, scope_err = _require_scope("")
+    if scope_err:
+        return scope_err
     body = {
         "filter": {"type": "eq", "field": "ip", "value": address},
+        "scopeName": scope,
         "limit": 1,
     }
     response = csw_client.search("/openapi/v1/inventory/search", body)
@@ -321,7 +409,13 @@ def summarize_cluster_posture() -> Dict[str, Any]:
     total = len(sensors)
 
     by_type: Dict[str, int] = {}
+    versions: Dict[str, int] = {}
     enforcing = 0
+    package_visibility = 0
+    process_visibility = 0
+    forensics_enabled = 0
+    insecure_cipher = 0
+    health_active = 0
     for s in sensors:
         if not isinstance(s, dict):
             continue
@@ -329,8 +423,20 @@ def summarize_cluster_posture() -> Dict[str, Any]:
         # separate boolean, which is what coverage actually measures.
         agent_type = str(s.get("agent_type") or "UNKNOWN")
         by_type[agent_type] = by_type.get(agent_type, 0) + 1
+        version = str(s.get("current_sw_version") or "unknown")
+        versions[version] = versions.get(version, 0) + 1
         if s.get("enforcement_enabled"):
             enforcing += 1
+        if s.get("enable_package_visibility"):
+            package_visibility += 1
+        if s.get("enable_process_visibility"):
+            process_visibility += 1
+        if s.get("enable_forensics"):
+            forensics_enabled += 1
+        if s.get("insecure_cipher"):
+            insecure_cipher += 1
+        if str(s.get("health") or "") == "active":
+            health_active += 1
     visibility = total - enforcing
     coverage_pct = round((enforcing / total) * 100, 1) if total else 0.0
 
@@ -348,6 +454,12 @@ def summarize_cluster_posture() -> Dict[str, Any]:
         "visibility_only_agents": visibility,
         "enforcement_coverage_pct": coverage_pct,
         "agents_by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
+        "agent_versions": _top_counts(versions),
+        "package_visibility_agents": package_visibility,
+        "process_visibility_agents": process_visibility,
+        "forensics_enabled_agents": forensics_enabled,
+        "insecure_cipher_agents": insecure_cipher,
+        "health_active_agents": health_active,
         "scope_count": scope_count,
         "headline": (
             f"{enforcing}/{total} agents enforcing "
@@ -687,6 +799,251 @@ def list_forensic_profiles() -> Dict[str, Any]:
     return csw_client.results_or_error(
         csw_client.get("/openapi/v1/inventory_config/forensic_profiles")
     )
+
+
+@mcp.tool()
+def list_forensic_rules(limit: int = _DEFAULT_LIMIT) -> Dict[str, Any]:
+    """List forensic detection rules, including built-in MITRE-named rules.
+
+    Same read as download_forensics.py / generate_forensics_report.py:
+    `GET /openapi/v1/inventory_config/forensic_rules`. Each row is the rule
+    name, type, severity, actions, and any MITRE technique id in the name.
+    """
+    limit = _clamp_limit(limit)
+    response = csw_client.get("/openapi/v1/inventory_config/forensic_rules")
+    if response.get("status") != 200:
+        return csw_client.results_or_error(response)
+    rows: List[Dict[str, Any]] = []
+    for rule in csw_client.extract_results(response):
+        if not isinstance(rule, dict):
+            continue
+        name = str(rule.get("name") or "")
+        rows.append({
+            "name": name,
+            "type": rule.get("type"),
+            "severity": rule.get("severity"),
+            "actions": rule.get("actions") or [],
+            "mitre": _MITRE_ID.findall(name),
+        })
+    return {"count": len(rows), "results": rows[:limit], "total_available": len(rows)}
+
+
+@mcp.tool()
+def list_forensic_intents() -> Dict[str, Any]:
+    """List which forensic profile is bound to which agent group.
+
+    Same read as download_forensics.py:
+    `GET /openapi/v1/inventory_config/forensic_intents`.
+    """
+    return csw_client.results_or_error(
+        csw_client.get("/openapi/v1/inventory_config/forensic_intents")
+    )
+
+
+@mcp.tool()
+def summarize_flows(hours: int = 24, limit: int = 200, scope_name: str = "") -> Dict[str, Any]:
+    """Summarize a sample of recent flows the way generate_flow_analysis.py does.
+
+    Returns policy verdict counts, the busiest destination ports, and the
+    process names seen most often. This is a sample, not a full export.
+
+    Args:
+        hours: Look-back window in hours (1–720, default 24).
+        limit: How many flow records to summarize (1–1000, default 200).
+        scope_name: CSW scopeName. Omit to use the cluster root scope.
+    """
+    if not csw_client.is_configured():
+        return csw_client.config_error()
+    hours = _clamp_hours(hours)
+    scope, scope_err = _require_scope(scope_name)
+    if scope_err:
+        return scope_err
+    t0, t1 = _epoch_window(hours)
+    body = {
+        "t0": t0,
+        "t1": t1,
+        "filter": dict(_MATCH_ALL_FLOWS),
+        "scopeName": scope,
+        "limit": _clamp_limit(limit),
+    }
+    response = csw_client.search("/openapi/v1/flowsearch", body)
+    if response.get("status") != 200:
+        return csw_client.results_or_error(response)
+    flows = [f for f in csw_client.extract_results(response) if isinstance(f, dict)]
+    verdicts = {"permitted": 0, "rejected": 0, "escaped": 0, "unknown": 0}
+    ports: Dict[str, int] = {}
+    processes: Dict[str, int] = {}
+    for flow in flows:
+        verdicts[_flow_verdict(flow)] += 1
+        port = flow.get("dst_port")
+        if port:
+            key = str(port)
+            ports[key] = ports.get(key, 0) + 1
+        for field in ("fwd_process_string", "rev_process_string", "src_process_name", "dst_process_name"):
+            name = str(flow.get(field) or "").strip()
+            if name and name.lower() != "unknown":
+                processes[name] = processes.get(name, 0) + 1
+    return {
+        "window_hours": hours,
+        "scope_name": scope,
+        "flows_sampled": len(flows),
+        "policy_verdicts": verdicts,
+        "top_destination_ports": _top_counts(ports),
+        "top_processes": _top_counts(processes),
+        "note": "Counts are from this sample. A larger limit sees more of the window.",
+    }
+
+
+@mcp.tool()
+def long_lived_processes(
+    days: int = 3,
+    limit_per_day: int = 100,
+    min_days: int = 2,
+    scope_name: str = "",
+) -> Dict[str, Any]:
+    """Find processes that keep showing up across days, as query_long_lived_processes.py does.
+
+    Samples flows once per day and groups them by process command and host.
+    Persistent means the process was in every sampled day.
+
+    Args:
+        days: How many daily samples to take (1–7, default 3).
+        limit_per_day: Flows to read in each day (1–1000, default 100).
+        min_days: Drop processes seen on fewer days than this.
+        scope_name: CSW scopeName. Omit to use the cluster root scope.
+    """
+    if not csw_client.is_configured():
+        return csw_client.config_error()
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        days = 3
+    days = max(1, min(_MAX_PROCESS_DAYS, days))
+    try:
+        min_days = int(min_days)
+    except (TypeError, ValueError):
+        min_days = 2
+    min_days = max(1, min(days, min_days))
+    scope, scope_err = _require_scope(scope_name)
+    if scope_err:
+        return scope_err
+    per_day = _clamp_limit(limit_per_day)
+    now = int(time.time())
+    grouped: Dict[tuple, Dict[str, Any]] = {}
+    sampled = 0
+    for day in range(days):
+        t1 = now - day * 86400
+        t0 = t1 - 86400
+        body = {
+            "t0": t0,
+            "t1": t1,
+            "filter": dict(_MATCH_ALL_FLOWS),
+            "scopeName": scope,
+            "limit": per_day,
+        }
+        response = csw_client.search("/openapi/v1/flowsearch", body)
+        if response.get("status") != 200:
+            if day == 0:
+                return csw_client.results_or_error(response)
+            continue
+        for flow in csw_client.extract_results(response):
+            if not isinstance(flow, dict):
+                continue
+            sampled += 1
+            pairs = (
+                (flow.get("fwd_process_string") or flow.get("src_process_name"), flow.get("src_address")),
+                (flow.get("rev_process_string") or flow.get("dst_process_name"), flow.get("dst_address")),
+            )
+            for proc, host in pairs:
+                proc = str(proc or "").strip()
+                if not proc or proc.lower() == "unknown":
+                    continue
+                key = (proc, str(host or ""))
+                rec = grouped.setdefault(key, {
+                    "process": proc[:120],
+                    "host": str(host or ""),
+                    "flow_count": 0,
+                    "days_seen": set(),
+                })
+                rec["flow_count"] += 1
+                rec["days_seen"].add(day)
+    rows = []
+    for rec in grouped.values():
+        seen = len(rec["days_seen"])
+        if seen < min_days:
+            continue
+        persistence = "persistent" if seen >= days else "recurring"
+        rows.append({
+            "process": rec["process"],
+            "host": rec["host"],
+            "flow_count": rec["flow_count"],
+            "days_seen": seen,
+            "persistence": persistence,
+        })
+    rows.sort(key=lambda r: (-r["days_seen"], -r["flow_count"]))
+    return {
+        "days_sampled": days,
+        "flows_sampled": sampled,
+        "scope_name": scope,
+        "min_days": min_days,
+        "count": len(rows),
+        "results": rows[:50],
+    }
+
+
+@mcp.tool()
+def audit_risky_policy_ports(limit: int = 40) -> Dict[str, Any]:
+    """Find ALLOW policies that open a risky port, as risky_port_audit.py does.
+
+    Walks workspaces and reads absolute plus default policies. DENY rules are
+    skipped. The walk is capped so one call cannot read every workspace on a
+    very large tenant.
+
+    Args:
+        limit: Max findings to return (1–1000, default 40).
+    """
+    if not csw_client.is_configured():
+        return csw_client.config_error()
+    limit = _clamp_limit(limit)
+    apps_resp = csw_client.get("/openapi/v1/applications")
+    if apps_resp.get("status") != 200:
+        return csw_client.results_or_error(apps_resp)
+    apps = [a for a in csw_client.extract_results(apps_resp) if isinstance(a, dict)]
+    findings: List[Dict[str, Any]] = []
+    checked = 0
+    for app in apps[:_MAX_WORKSPACES]:
+        app_id = app.get("id")
+        if not app_id:
+            continue
+        checked += 1
+        pol = csw_client.get(f"/openapi/v1/applications/{app_id}/policies")
+        if pol.get("status") != 200 or not isinstance(pol.get("data"), dict):
+            continue
+        data = pol["data"]
+        rules = list(data.get("absolute_policies") or []) + list(data.get("default_policies") or [])
+        for rule in rules:
+            if not isinstance(rule, dict) or rule.get("action") != "ALLOW":
+                continue
+            hits = _policy_ports(rule.get("l4_params"))
+            if not hits:
+                continue
+            findings.append({
+                "workspace": app.get("name"),
+                "primary": app.get("primary"),
+                "rank": rule.get("priority") if rule.get("priority") is not None else rule.get("rank"),
+                "ports": hits,
+            })
+            if len(findings) >= limit:
+                break
+        if len(findings) >= limit:
+            break
+    return {
+        "workspaces_checked": checked,
+        "workspaces_available": len(apps),
+        "truncated": len(apps) > _MAX_WORKSPACES or len(findings) >= limit,
+        "count": len(findings),
+        "results": findings[:limit],
+    }
 
 
 # ---------------------------------------------------------------------------

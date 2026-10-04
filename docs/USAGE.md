@@ -61,7 +61,9 @@ Three guided workflows ship as MCP prompts (pick them from Cursor's prompt menu)
 | Inspect policy | `list_workspaces`, `get_workspace_policies`, `list_policies_for_workload` |
 | Investigate traffic | `search_flows`, `get_conversations`, `top_risky_flows` |
 | Assess vulnerabilities | `get_workload_cves`, `top_vulnerable_hosts`, `get_workload_packages` |
-| Review detection config | `list_forensic_profiles` |
+| Review detection config | `list_forensic_profiles`, `list_forensic_rules`, `list_forensic_intents` |
+| Summarize recent traffic | `summarize_flows`, `long_lived_processes` |
+| Audit policy for risky ports | `audit_risky_policy_ports` |
 
 ## Combining tools in one conversation
 

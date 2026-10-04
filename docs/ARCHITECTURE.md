@@ -13,7 +13,7 @@ flowchart TB
 
     subgraph Server["csw-mcp (this project)"]
         M["__main__.py<br/>stdio entry point"]
-        SV["server.py<br/>FastMCP: 15 tools, 4 resources, 3 prompts"]
+        SV["server.py<br/>FastMCP: 20 tools, 4 resources, 3 prompts"]
         CL["csw_client.py<br/>read-only wrapper + error normalization"]
         CF["config.py<br/>.env loader (no override, no logging)"]
         subgraph Vendor["vendor/ (synced, not hand-edited)"]

@@ -93,6 +93,11 @@ def main() -> int:
         ("get_workload_packages", lambda: server.get_workload_packages(uuid)),
         ("top_vulnerable_hosts", lambda: server.top_vulnerable_hosts(limit=5)),
         ("list_forensic_profiles", lambda: server.list_forensic_profiles()),
+        ("list_forensic_rules", lambda: server.list_forensic_rules(limit=5)),
+        ("list_forensic_intents", lambda: server.list_forensic_intents()),
+        ("summarize_flows", lambda: server.summarize_flows(hours=1, limit=20)),
+        ("long_lived_processes", lambda: server.long_lived_processes(days=1, limit_per_day=20, min_days=1)),
+        ("audit_risky_policy_ports", lambda: server.audit_risky_policy_ports(limit=5)),
     ]
 
     failures = 0

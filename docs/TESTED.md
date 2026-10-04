@@ -1,9 +1,9 @@
 # Current capabilities
 
-[![Live test](https://img.shields.io/badge/live%20test-2%20Oct%202026-059669)](.)
+[![Live test](https://img.shields.io/badge/live%20test-4%20Oct%202026-059669)](.)
 [![SaaS tenant](https://img.shields.io/badge/tenant-Secure%20Workload%20SaaS-00bceb)](.)
 
-Latest run: **2 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. Every feature in the table returned data.
+Latest run: **4 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. Every feature in the table returned data.
 
 | | Feature | What you get | Try this |
 |---|---|---|---|
@@ -18,6 +18,11 @@ Latest run: **2 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. 
 | ✅ | `search_flows` | Recent flow records for a scope | “Show recent flows in the root scope.” |
 | ✅ | `get_conversations` | ADM conversations for one workspace | “Show the conversations for this workspace.” |
 | ✅ | `top_risky_flows` | Risky ports that have recent flow activity | “Which risky ports have recent traffic?” |
+| ✅ | `list_forensic_rules` | Forensic detection rules, including MITRE ids in the name | “Which forensic rules are configured?” |
+| ✅ | `list_forensic_intents` | Which profile is bound to which agent group | “Which forensic profile applies where?” |
+| ✅ | `summarize_flows` | Policy verdicts, busiest ports, and process names in a sample | “Summarize recent flows.” |
+| ✅ | `long_lived_processes` | Processes that keep appearing across daily samples | “Which processes stay up across days?” |
+| ✅ | `audit_risky_policy_ports` | ALLOW policies that open a risky port | “Which policies allow RDP or SMB?” |
 | ✅ | `csw://cluster/info` | Confirmation the server is configured and the tenant answers | “Is csw-mcp connected?” |
 
 A feature is added here after a live call returns HTTP 200 and a result you can put on screen. Update the date when the next run confirms the list.

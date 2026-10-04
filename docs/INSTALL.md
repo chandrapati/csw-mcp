@@ -96,7 +96,7 @@ In Cursor, the MCP picker should show `csw-mcp` with its tools:
 
 ```
 ┌─ MCP Servers ────────────────────────────┐
-│  ● csw-mcp                      15 tools  │
+│  ● csw-mcp                      20 tools  │
 │      list_scopes                          │
 │      list_sensors                         │
 │      summarize_cluster_posture            │
@@ -118,7 +118,7 @@ Exercise every tool against your own cluster:
 ```bash
 uv run python tests/test_tools_live.py
 # PASS  list_scopes  …
-# 15/15 tools returned without raising.
+# 20/20 tools returned without raising.
 ```
 
 Having trouble? See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**.
