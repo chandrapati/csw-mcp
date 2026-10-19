@@ -30,7 +30,8 @@ Cisco field Macs hit this on cluster calls because Python does not read the
 Keychain, even when the browser does.
 
 - Package installs: `export UV_SYSTEM_CERTS=true` before `uv venv` / `uv pip`.
-  See [Cisco field Mac](INSTALL.md#cisco-field-mac).
+  On Windows, set that user variable as in [Windows](INSTALL.md#windows).
+  Mac and Linux steps are in [INSTALL.md](INSTALL.md).
 - Cluster calls from this server: set `CSW_VERIFY_SSL=false` in `.env`.
   That skips verification for `csw-mcp` only.
 

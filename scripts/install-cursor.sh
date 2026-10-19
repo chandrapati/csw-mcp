@@ -25,6 +25,11 @@ if command -v uv >/dev/null 2>&1; then
   # Absolute path. Cursor launched from the Dock does not load ~/.zshrc,
   # which is the normal case on a Cisco field Mac.
   CMD="$(command -v uv)"
+  # Git Bash reports a POSIX path (/c/Users/...). Cursor on Windows cannot
+  # launch that. cygpath -w turns it into C:\Users\...
+  if command -v cygpath >/dev/null 2>&1; then
+    CMD="$(cygpath -w "${CMD}")"
+  fi
   ARGS_JSON="[\"run\", \"--directory\", \"${REPO_DIR}\", \"csw-mcp\"]"
 elif [ -x "${REPO_DIR}/.venv/bin/csw-mcp" ]; then
   CMD="${REPO_DIR}/.venv/bin/csw-mcp"

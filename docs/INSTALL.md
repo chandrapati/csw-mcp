@@ -3,9 +3,17 @@
 A step-by-step guide to get `csw-mcp` running against your cluster in under 10
 minutes.
 
-On a Cisco-issued Mac, follow [Cisco field Mac](#cisco-field-mac) and skip the
-generic install. That laptop does not need admin rights. It does need `uv` on
-a path the Dock app can see, and it does need a way through Cisco's TLS proxy.
+Pick the page for the laptop you have and skip the generic install:
+
+- [Cisco field Mac](#cisco-field-mac)
+- [Windows](#windows)
+- [Linux](#linux)
+
+None of these need administrator rights for the server itself. Each one installs
+`uv` into your home directory and tells the client the full path, because an
+app opened from the Dock, the Start menu, or a desktop launcher does not load
+your shell startup file. On a Cisco laptop, TLS inspection means `uv` must use
+the system certificate store, and Python still may not.
 
 ## Install sequence
 
@@ -175,6 +183,258 @@ uv run python -c "from csw_mcp.server import mcp; print('tools:', len(mcp._tool_
 
 The first command prints `[]` when `.env` is complete. The second prints the
 tool count. Then ask the client: "Summarize my CSW cluster posture."
+
+## Windows
+
+Use PowerShell. You do not need an elevated prompt. Cursor, Claude Code,
+Codex, or LM Studio still come from the vendor or from the software catalog if
+the browser download is blocked.
+
+### 1. Put uv in your user profile
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+The installer places `uv.exe` in `%USERPROFILE%\.local\bin` and can add that
+directory to your user PATH. Close that PowerShell window and open a new one
+so the new PATH is visible. Then trust the certificate store already on the
+laptop:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("UV_SYSTEM_CERTS", "true", "User")
+$env:UV_SYSTEM_CERTS = "true"
+uv --version
+```
+
+`uv --version` should print a version. The program path is
+`C:\Users\<you>\.local\bin\uv.exe`.
+
+### 2. Clone and install
+
+Git for Windows is required for `git clone`. If `git` is not installed and you
+cannot add it, download the repository zip from GitHub and unpack it to
+`C:\Users\<you>\code\csw-mcp`. Avoid a path with spaces.
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\code" | Out-Null
+git clone https://github.com/chandrapati/csw-mcp.git "$env:USERPROFILE\code\csw-mcp"
+Set-Location "$env:USERPROFILE\code\csw-mcp"
+uv venv
+uv pip install -e .
+```
+
+`UV_SYSTEM_CERTS=true` is what lets `uv` download Python through a Cisco TLS
+proxy. The Windows certificate store already has that proxy's root. Python,
+which this server uses for cluster calls, does not read that store.
+
+### 3. Create the API key in the cluster, not on the laptop
+
+Open the cluster URL in the browser. If the page does not load, connect Cisco
+Secure Client and try again. A SaaS tenant on `*.tetrationcloud.com` is
+reached over the internet. An on-premises cluster is reachable only on the
+network or VPN where that cluster lives.
+
+In the UI: **User Menu → API Keys → Create API Key**. The key needs
+`sensor_management`, `flow_inventory_query`, and `app_policy_management`.
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Set `CSW_API_URL`, `CSW_API_KEY`, and `CSW_API_SECRET`. Leave
+`CSW_VERIFY_SSL` unset and try the confirm step. If the call fails with
+`CERTIFICATE_VERIFY_FAILED`, add this line to `.env`:
+
+```bash
+CSW_VERIFY_SSL=false
+```
+
+That skips TLS verification for this server only. Do not commit `.env`.
+
+### 4. Register the client with uv.exe
+
+Cursor on Windows reads `%USERPROFILE%\.cursor\mcp.json`. Do not point
+`command` at a Git Bash path such as `/c/Users/...`. Cursor cannot launch
+that. Use the `.exe` path, with forward slashes so the JSON does not need
+escaped backslashes:
+
+```json
+{
+  "mcpServers": {
+    "csw-mcp": {
+      "command": "C:/Users/<you>/.local/bin/uv.exe",
+      "args": ["run", "--directory", "C:/Users/<you>/code/csw-mcp", "csw-mcp"]
+    }
+  }
+}
+```
+
+Quit Cursor completely and open it again.
+
+`scripts/install-cursor.sh` works from Git Bash and converts `uv` with
+`cygpath -w` when that command exists. From PowerShell, paste the JSON above.
+
+Claude Code:
+
+```powershell
+claude mcp add --transport stdio --scope user csw-mcp -- `
+  "$env:USERPROFILE\.local\bin\uv.exe" run --directory "$env:USERPROFILE\code\csw-mcp" csw-mcp
+```
+
+Then `claude mcp list`, start Claude Code, and run `/mcp`.
+
+Codex:
+
+```powershell
+codex mcp add csw-mcp -- `
+  "$env:USERPROFILE\.local\bin\uv.exe" run --directory "$env:USERPROFILE\code\csw-mcp" csw-mcp
+```
+
+Then `codex mcp list`, or `/mcp` in the Codex terminal UI. The same file is
+`%USERPROFILE%\.codex\config.toml`.
+
+LM Studio 0.3.17 or newer: Program → Install → Edit `mcp.json`, and paste the
+same JSON as Cursor. The loaded model has to support tool calling.
+
+### 5. Confirm it from PowerShell first
+
+```powershell
+Set-Location "$env:USERPROFILE\code\csw-mcp"
+uv run python -c "from csw_mcp import config; print(config.missing_vars())"
+uv run python -c "from csw_mcp.server import mcp; print('tools:', len(mcp._tool_manager._tools))"
+```
+
+The first command prints `[]` when `.env` is complete. Then ask the client:
+"Summarize my CSW cluster posture."
+
+## Linux
+
+Use a terminal. You do not need `sudo` or Homebrew. The shell may be bash or
+zsh. Cursor, Claude Code, Codex, or LM Studio still come from the vendor or
+from the software catalog if the download is blocked.
+
+### 1. Put uv in your home directory
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Add it to the startup file your shell actually reads (`~/.bashrc` for bash,
+`~/.zshrc` for zsh), and tell `uv` to use the system certificate store:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+export PATH="$HOME/.local/bin:$PATH"
+export UV_SYSTEM_CERTS=true
+EOF
+source ~/.bashrc
+which uv
+```
+
+`which uv` should print `/home/<you>/.local/bin/uv`. A desktop app still will
+not see this PATH. The client config below uses the full path for that reason.
+
+### 2. Clone and install
+
+```bash
+mkdir -p "$HOME/code"
+git clone https://github.com/chandrapati/csw-mcp.git "$HOME/code/csw-mcp"
+cd "$HOME/code/csw-mcp"
+uv venv
+uv pip install -e .
+```
+
+If `git clone` fails on a certificate, the corporate root is not in the bundle
+`git` is using. Install that root through the laptop's certificate package, or
+point `git` at the system bundle:
+
+```bash
+git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
+```
+
+That path is the Debian and Ubuntu bundle. On Fedora and RHEL it is
+`/etc/pki/tls/certs/ca-bundle.crt`.
+
+### 3. Create the API key in the cluster, not on the laptop
+
+Open the cluster URL in a browser. If the page does not load, connect Cisco
+Secure Client and try again. A SaaS tenant on `*.tetrationcloud.com` is
+reached over the internet. An on-premises cluster is reachable only on the
+network or VPN where that cluster lives.
+
+In the UI: **User Menu → API Keys → Create API Key**. The key needs
+`sensor_management`, `flow_inventory_query`, and `app_policy_management`.
+
+```bash
+cp .env.example .env
+```
+
+Set `CSW_API_URL`, `CSW_API_KEY`, and `CSW_API_SECRET`. Leave
+`CSW_VERIFY_SSL` unset and try the confirm step. Python does not use the
+system bundle unless you point it there. If the call fails with
+`CERTIFICATE_VERIFY_FAILED`, add this line to `.env`:
+
+```bash
+CSW_VERIFY_SSL=false
+```
+
+That skips TLS verification for this server only. Do not commit `.env`.
+
+### 4. Register the client with the full path to uv
+
+From the checkout, Cursor:
+
+```bash
+bash scripts/install-cursor.sh
+```
+
+The script writes `~/.cursor/mcp.json` with the absolute path of `uv`. Quit
+Cursor completely and open it again.
+
+Claude Code:
+
+```bash
+claude mcp add --transport stdio --scope user csw-mcp -- \
+  "$HOME/.local/bin/uv" run --directory "$HOME/code/csw-mcp" csw-mcp
+```
+
+Then `claude mcp list`, start Claude Code, and run `/mcp`.
+
+Codex:
+
+```bash
+codex mcp add csw-mcp -- \
+  "$HOME/.local/bin/uv" run --directory "$HOME/code/csw-mcp" csw-mcp
+```
+
+Then `codex mcp list`, or `/mcp` in the Codex terminal UI.
+
+LM Studio 0.3.17 or newer: Program → Install → Edit `mcp.json`. The loaded
+model has to support tool calling.
+
+```json
+{
+  "mcpServers": {
+    "csw-mcp": {
+      "command": "/home/<you>/.local/bin/uv",
+      "args": ["run", "--directory", "/home/<you>/code/csw-mcp", "csw-mcp"]
+    }
+  }
+}
+```
+
+### 5. Confirm it from a terminal first
+
+```bash
+cd "$HOME/code/csw-mcp"
+uv run python -c "from csw_mcp import config; print(config.missing_vars())"
+uv run python -c "from csw_mcp.server import mcp; print('tools:', len(mcp._tool_manager._tools))"
+```
+
+The first command prints `[]` when `.env` is complete. Then ask the client:
+"Summarize my CSW cluster posture."
 
 ## 1. Prerequisites
 
