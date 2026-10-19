@@ -26,10 +26,13 @@ Almost always one of:
 ### 3. `CERTIFICATE_VERIFY_FAILED`
 
 You're behind a TLS-inspecting corporate proxy, or macOS Python lacks root certs.
+Cisco field Macs hit this on cluster calls because Python does not read the
+Keychain, even when the browser does.
 
-- Proper fix: install your org root CA, or run Python's
-  *"Install Certificates.command"*.
-- Quick unblock (dev only): set `CSW_VERIFY_SSL=false` in `.env`.
+- Package installs: `export UV_SYSTEM_CERTS=true` before `uv venv` / `uv pip`.
+  See [Cisco field Mac](INSTALL.md#cisco-field-mac).
+- Cluster calls from this server: set `CSW_VERIFY_SSL=false` in `.env`.
+  That skips verification for `csw-mcp` only.
 
 ### 4. `command not found: uv`
 
@@ -48,12 +51,22 @@ You have `mcp` 2.x installed; this project targets the FastMCP (1.x) API.
 uv pip install -e .      # pyproject pins mcp>=1.0.0,<2
 ```
 
-### 6. `csw-mcp` doesn't appear in Cursor's MCP picker
+### 6. `csw-mcp` doesn't appear in the client
+
+Cursor:
 
 - Re-run `bash scripts/install-cursor.sh` and **fully restart** Cursor.
 - Check `~/.cursor/mcp.json` has a valid `csw-mcp` entry and the `--directory`
   path is correct.
 - Make sure `uv` is on the PATH Cursor sees (launch Cursor from a terminal if needed).
+
+Claude Code: `claude mcp list`, then `/mcp` in the session.
+Codex: `codex mcp list`, then `/mcp` in the terminal UI.
+LM Studio: Program → Install → Edit `mcp.json`, then reload. The loaded model
+must support tool calling. LM Studio 0.3.17 or newer is required.
+
+The `--directory` path has to be the checkout that contains `.env`. A client
+that cannot launch a stdio process cannot use this server.
 
 ### 7. Server starts but every tool errors with a connection failure
 

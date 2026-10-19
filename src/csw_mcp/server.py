@@ -21,6 +21,7 @@ import json
 import os
 import re
 import time
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -117,6 +118,27 @@ def _epoch_window(hours: int) -> tuple[int, int]:
     return t1 - hours * 3600, t1
 
 
+def _root_scope_record() -> Dict[str, Any]:
+    """Top-level scope record. Cached so directory tools do not re-list scopes."""
+
+    def produce() -> Dict[str, Any]:
+        response = csw_client.get("/openapi/v1/app_scopes")
+        if response.get("status") != 200:
+            return {}
+        scopes = csw_client.extract_results(response)
+        roots = [
+            s for s in scopes
+            if isinstance(s, dict) and not s.get("parent_app_scope_id") and s.get("name")
+        ]
+        if not roots:
+            return {}
+        roots.sort(key=lambda s: str(s.get("name")).count(":"))
+        return roots[0]
+
+    found = _cached("root_scope_record", produce)
+    return found if isinstance(found, dict) else {}
+
+
 def _root_scope_name() -> str:
     """Name of the top-level scope. Flow search rejects a body without scopeName.
 
@@ -126,22 +148,7 @@ def _root_scope_name() -> str:
     explicit = os.environ.get("CSW_ROOT_SCOPE", "").strip()
     if explicit:
         return explicit
-
-    def produce() -> str:
-        response = csw_client.get("/openapi/v1/app_scopes")
-        if response.get("status") != 200:
-            return ""
-        scopes = csw_client.extract_results(response)
-        roots = [
-            s for s in scopes
-            if isinstance(s, dict) and not s.get("parent_app_scope_id") and s.get("name")
-        ]
-        if not roots:
-            return ""
-        roots.sort(key=lambda s: str(s.get("name")).count(":"))
-        return str(roots[0]["name"])
-
-    return _cached("root_scope", produce)
+    return str(_root_scope_record().get("name") or "")
 
 
 def _require_scope(scope_name: str) -> tuple[str, Optional[Dict[str, Any]]]:
@@ -784,6 +791,130 @@ def top_vulnerable_hosts(limit: int = 20) -> Dict[str, Any]:
         "scan_cap": _MAX_HOSTS_SCANNED,
         "results": ranked[:limit],
     }
+
+
+# ---------------------------------------------------------------------------
+# Tools — directory (Tetration AS collection, read-only)
+# Validated on the Acme SaaS tenant, 13 Oct 2026. Writes stay out of this server.
+# ---------------------------------------------------------------------------
+
+_ORCH_KEEP = (
+    "id",
+    "name",
+    "type",
+    "description",
+    "scope_id",
+    "enable_enforcement",
+    "authentication_failure",
+    "authentication_failure_error",
+    "use_secureconnector_tunnel",
+    "insecure",
+    "deleted",
+)
+
+
+def _summarize_orchestrator(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Return operator fields only.
+
+    The live orchestrator payload includes cloud credentials (access keys,
+    session tokens, client secrets, certificates). Those fields are never
+    copied into the tool result.
+    """
+    return {key: record.get(key) for key in _ORCH_KEEP if key in record}
+
+
+@mcp.tool()
+def list_inventory_filters() -> Dict[str, Any]:
+    """List inventory filters (the query objects policy and scopes reuse).
+
+    Returns records from `GET /openapi/v1/filters/inventories`.
+    """
+    return csw_client.results_or_error(csw_client.get("/openapi/v1/filters/inventories"))
+
+
+@mcp.tool()
+def list_connectors() -> Dict[str, Any]:
+    """List external connectors for the root scope.
+
+    `GET /openapi/v1/connectors` returns HTTP 400 unless `root_scope_id` is
+    set. This tool sends the root scope id from the scope tree.
+    """
+    root = _root_scope_record()
+    root_id = str(root.get("id") or "")
+    if not root_id:
+        return {
+            "error": "Could not resolve the root scope id.",
+            "hint": "list_scopes must succeed before connectors can be listed.",
+        }
+    return csw_client.results_or_error(
+        csw_client.get("/openapi/v1/connectors", params={"root_scope_id": root_id})
+    )
+
+
+@mcp.tool()
+def list_orchestrators() -> Dict[str, Any]:
+    """List orchestrators in the root scope (Kubernetes, cloud, DNS, and similar).
+
+    `GET /openapi/v1/orchestrator/{scopeName}`. The raw record can contain
+    cloud credentials. This tool returns name, type, and status fields only.
+    """
+    scope = _root_scope_name()
+    if not scope:
+        return {
+            "error": "Could not resolve the root scope name.",
+            "hint": "Set CSW_ROOT_SCOPE or confirm list_scopes works.",
+        }
+    response = csw_client.get(f"/openapi/v1/orchestrator/{urllib.parse.quote(scope, safe='')}")
+    if response.get("status") != 200:
+        return csw_client.results_or_error(response)
+    rows = [
+        _summarize_orchestrator(item)
+        for item in csw_client.extract_results(response)
+        if isinstance(item, dict)
+    ]
+    return {"count": len(rows), "scope_name": scope, "results": rows}
+
+
+@mcp.tool()
+def secure_connector_status() -> Dict[str, Any]:
+    """Report whether the Secure Connector tunnel for the root scope is active.
+
+    `GET /openapi/v1/secureconnector/{root_scope_id}/status`. Does not fetch
+    the token and does not rotate certificates.
+    """
+    root = _root_scope_record()
+    root_id = str(root.get("id") or "")
+    if not root_id:
+        return {"error": "Could not resolve the root scope id."}
+    response = csw_client.get(f"/openapi/v1/secureconnector/{root_id}/status")
+    if response.get("status") != 200:
+        return csw_client.results_or_error(response)
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    return {
+        "root_scope_id": root_id,
+        "active": data.get("active"),
+    }
+
+
+@mcp.tool()
+def list_agent_config_profiles() -> Dict[str, Any]:
+    """List software agent configuration profiles.
+
+    Returns records from `GET /openapi/v1/inventory_config/profiles`.
+    """
+    return csw_client.results_or_error(
+        csw_client.get("/openapi/v1/inventory_config/profiles")
+    )
+
+
+@mcp.tool()
+def list_roles() -> Dict[str, Any]:
+    """List API roles and their capability flags.
+
+    Returns records from `GET /openapi/v1/roles`. This is the role catalog,
+    not the user directory.
+    """
+    return csw_client.results_or_error(csw_client.get("/openapi/v1/roles"))
 
 
 # ---------------------------------------------------------------------------

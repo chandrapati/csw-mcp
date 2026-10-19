@@ -2,7 +2,7 @@
 
 # csw-mcp
 
-**Query Cisco Secure Workload in natural language — a read-only MCP server for Cursor, Claude Desktop, Grok, Codex, and Gemini.**
+**Query Cisco Secure Workload in natural language — a read-only MCP server for any client that can launch a local stdio server, including Cursor, Claude Code, Codex, and LM Studio.**
 
 ![Visitors](https://visitor-badge.laobi.icu/badge?page_id=chandrapati.csw-mcp&left_text=visitors)
 
@@ -21,7 +21,7 @@
 ## What it is
 
 `csw-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server
-that lets MCP clients (Cursor, Claude Desktop, Grok, Codex, and Gemini) query a **Cisco Secure Workload
+that lets an MCP client (Cursor, Claude Code, Codex, LM Studio, or any other stdio host) query a **Cisco Secure Workload
 (CSW / Tetration)** cluster in plain English. It is for anyone who wants to
 use CSW and get posture answers without writing HMAC-signed API calls.
 
@@ -29,7 +29,7 @@ use CSW and get posture answers without writing HMAC-signed API calls.
 flowchart TB
     ui["1 · In the Secure Workload UI<br/>User Menu → API Keys → Create API Key"]
     env["2 · On your laptop, copy .env.example to .env<br/>CSW_API_URL · CSW_API_KEY · CSW_API_SECRET"]
-    ask["3 · Ask in Cursor, Claude Desktop,<br/>Grok, Codex, or Gemini"]
+    ask["3 · Ask in Cursor, Claude Code,<br/>Codex, or LM Studio"]
     local["4 · csw-mcp reads that .env<br/>and signs each call with the API secret"]
     tenant["5 · Your Secure Workload tenant"]
     reply["6 · The answer comes back in the chat"]
@@ -112,17 +112,18 @@ uv pip install -e .
 # 3. Configure credentials
 cp .env.example .env            # then edit with your cluster URL / key / secret
 
-# 4. Register with Cursor (idempotent)
+# 4. Register with a client. Cursor:
 bash scripts/install-cursor.sh
+# Claude Code, Codex, and LM Studio: see docs/INSTALL.md
 
-# 5. Restart Cursor, then ask: "Summarize my CSW cluster posture."
+# 5. Reload that client, then ask: "Summarize my CSW cluster posture."
 ```
 
 Verify it loaded:
 
 ```bash
 uv run python -c "from csw_mcp.server import mcp; print('tools:', len(mcp._tool_manager._tools), 'prompts:', len(mcp._prompt_manager._prompts))"
-# tools: 20 prompts: 3
+# tools: 26 prompts: 3
 
 # Optional: smoke-test every tool against your own cluster
 uv run python tests/test_tools_live.py
@@ -134,7 +135,7 @@ Full step-by-step with screenshots-as-ascii: **[docs/INSTALL.md](docs/INSTALL.md
 
 ## Capabilities
 
-### Tools (20)
+### Tools (26)
 
 | Name | What it does |
 |------|--------------|
@@ -158,6 +159,12 @@ Full step-by-step with screenshots-as-ascii: **[docs/INSTALL.md](docs/INSTALL.md
 | `summarize_flows` | Policy verdicts, busiest ports, and process names in a flow sample |
 | `long_lived_processes` | Processes that keep appearing across daily flow samples |
 | `audit_risky_policy_ports` | ALLOW policies that open a risky management or data port |
+| `list_inventory_filters` | Inventory filters (`GET /openapi/v1/filters/inventories`) |
+| `list_connectors` | Connectors for the root scope (`root_scope_id` is required) |
+| `list_orchestrators` | Orchestrators in the root scope, with cloud credentials removed |
+| `secure_connector_status` | Whether the root-scope Secure Connector tunnel is active |
+| `list_agent_config_profiles` | Software agent configuration profiles |
+| `list_roles` | API roles and capability flags (not the user directory) |
 
 ### Resources (4)
 
@@ -178,7 +185,7 @@ See **[docs/USAGE.md](docs/USAGE.md)** for example prompts and when to use each 
 
 ## Current capabilities
 
-[![Live test](https://img.shields.io/badge/live%20test-4%20Oct%202026-059669)](docs/TESTED.md)
+[![Live test](https://img.shields.io/badge/live%20test-13%20Oct%202026-059669)](docs/TESTED.md)
 [![SaaS tenant](https://img.shields.io/badge/tenant-Secure%20Workload%20SaaS-00bceb)](docs/TESTED.md)
 
 Confirmed on a live SaaS tenant. Each row below returned data. Full notes: **[docs/TESTED.md](docs/TESTED.md)**.
@@ -201,6 +208,12 @@ Confirmed on a live SaaS tenant. Each row below returned data. Full notes: **[do
 | ✅ | `summarize_flows` | Policy verdicts, busiest ports, and process names in a sample | “Summarize recent flows.” |
 | ✅ | `long_lived_processes` | Processes that keep appearing across daily samples | “Which processes stay up across days?” |
 | ✅ | `audit_risky_policy_ports` | ALLOW policies that open a risky port | “Which policies allow RDP or SMB?” |
+| ✅ | `list_inventory_filters` | Inventory filters | “List the inventory filters.” |
+| ✅ | `list_connectors` | Connectors on the root scope | “Which connectors are configured?” |
+| ✅ | `list_orchestrators` | Orchestrator name and type, credentials removed | “Which orchestrators are on this cluster?” |
+| ✅ | `secure_connector_status` | Whether the Secure Connector tunnel is active | “Is the Secure Connector up?” |
+| ✅ | `list_agent_config_profiles` | Agent configuration profiles | “Which agent config profiles exist?” |
+| ✅ | `list_roles` | API roles | “Which roles are defined?” |
 
 ---
 

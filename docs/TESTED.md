@@ -1,9 +1,9 @@
 # Current capabilities
 
-[![Live test](https://img.shields.io/badge/live%20test-4%20Oct%202026-059669)](.)
+[![Live test](https://img.shields.io/badge/live%20test-13%20Oct%202026-059669)](.)
 [![SaaS tenant](https://img.shields.io/badge/tenant-Secure%20Workload%20SaaS-00bceb)](.)
 
-Latest run: **4 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. Every feature in the table returned data.
+Latest run: **13 Oct 2026** on `https://acme.tetrationcloud.com`. Sign-in succeeded. The six directory tools below were added from the Tetration AS Postman collection and returned data on that run. The earlier rows were confirmed on 4 Oct 2026 and were not all re-run on 13 Oct.
 
 | | Feature | What you get | Try this |
 |---|---|---|---|
@@ -24,5 +24,11 @@ Latest run: **4 Oct 2026** on a Secure Workload SaaS tenant. Sign-in succeeded. 
 | ✅ | `long_lived_processes` | Processes that keep appearing across daily samples | “Which processes stay up across days?” |
 | ✅ | `audit_risky_policy_ports` | ALLOW policies that open a risky port | “Which policies allow RDP or SMB?” |
 | ✅ | `csw://cluster/info` | Confirmation the server is configured and the tenant answers | “Is csw-mcp connected?” |
+| ✅ | `list_inventory_filters` | Inventory filters | “List the inventory filters.” |
+| ✅ | `list_connectors` | Connectors for the root scope. The call must send `root_scope_id`. | “Which connectors are configured?” |
+| ✅ | `list_orchestrators` | Orchestrator name, type, and status. Cloud keys, tokens, secrets, and certificates are dropped before the result is returned. | “Which orchestrators are on this cluster?” |
+| ✅ | `secure_connector_status` | `{active: true/false}` for the root scope. The token route is not called. | “Is the Secure Connector up?” |
+| ✅ | `list_agent_config_profiles` | Agent configuration profiles | “Which agent config profiles exist?” |
+| ✅ | `list_roles` | Role catalog. The user directory is not exposed. | “Which roles are defined?” |
 
 A feature is added here after a live call returns HTTP 200 and a result you can put on screen. Update the date when the next run confirms the list.

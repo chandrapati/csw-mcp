@@ -59,6 +59,7 @@ Three guided workflows ship as MCP prompts (pick them from Cursor's prompt menu)
 | Find specific workloads | `search_inventory`, `get_workload` |
 | Gauge overall posture fast | `summarize_cluster_posture` |
 | Inspect policy | `list_workspaces`, `get_workspace_policies`, `list_policies_for_workload` |
+| See filters, connectors, orchestrators, roles | `list_inventory_filters`, `list_connectors`, `list_orchestrators`, `list_roles`, `list_agent_config_profiles`, `secure_connector_status` |
 | Investigate traffic | `search_flows`, `get_conversations`, `top_risky_flows` |
 | Assess vulnerabilities | `get_workload_cves`, `top_vulnerable_hosts`, `get_workload_packages` |
 | Review detection config | `list_forensic_profiles`, `list_forensic_rules`, `list_forensic_intents` |

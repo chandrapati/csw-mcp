@@ -22,7 +22,9 @@ mkdir -p "$(dirname "${MCP_JSON}")"
 # Prefer uv if available (matches the project toolchain); otherwise fall back
 # to the virtualenv's console script.
 if command -v uv >/dev/null 2>&1; then
-  CMD="uv"
+  # Absolute path. Cursor launched from the Dock does not load ~/.zshrc,
+  # which is the normal case on a Cisco field Mac.
+  CMD="$(command -v uv)"
   ARGS_JSON="[\"run\", \"--directory\", \"${REPO_DIR}\", \"csw-mcp\"]"
 elif [ -x "${REPO_DIR}/.venv/bin/csw-mcp" ]; then
   CMD="${REPO_DIR}/.venv/bin/csw-mcp"
